@@ -6,6 +6,8 @@ import os
 import argparse
 import random
 import re
+import json
+import matplotlib.pyplot as plt
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import pyfiglet
@@ -16,7 +18,6 @@ def print_banner():
     banner = pyfiglet.figlet_format("HUGINN_RECON", font="starwars", width=150)
     print(f"\033[31m{banner}\033[0m")
 
-
 class Colors:
     RED = '\033[31m'
     GREEN = '\033[32m'
@@ -24,7 +25,6 @@ class Colors:
     BLUE = '\033[34m'
     CYAN = '\033[36m'
     END = '\033[0m'
-
 
 class Headers:
     user_agents = [
@@ -186,14 +186,20 @@ class Headers:
         'Mozilla/5.0 (X11; Linux i686) AppleWebKit/535.21 (KHTML, like Gecko) Chrome/19.0.1041.0 Safari/535.21',
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.19 (KHTML, like Gecko) Ubuntu/11.10 Chromium/18.0.1025.142 Chrome/18.0.1025.142 Safari/535.19',
         'Mozilla/5.0 (Windows NT 5.1; U; de; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6 Opera 11.00'
-     ]
-
+    ]
 
 class Configuration:
     __huginn_recon_api__ = "https://ahmia.fi/search/?q="
 
+    @staticmethod
+    def load_config(file_path="config.json"):
+        with open(file_path, "r") as file:
+            return json.load(file)
 
 class Huginn_recon:
+    def __init__(self):
+        self.categorized_results = {}
+
     def clean_text(self, text):
         """Clean text by removing non-printable characters and extra spaces."""
         text = re.sub(r'[^\x00-\x7F]+', '', text)
@@ -205,8 +211,8 @@ class Huginn_recon:
         sentences = sent_tokenize(text)
         return ' '.join(sentences[:max_sentences])
 
-    def generate_pdf_report(self, results, filename="report.pdf"):
-        """Generate a PDF report from the scraping results."""
+    def generate_pdf_report(self, categorized_results, graph_path, filename="report.pdf"):
+        """Generate a PDF report from the categorized results."""
         pdf_path = os.path.join(os.getcwd(), filename)
         c = canvas.Canvas(pdf_path, pagesize=letter)
         width, height = letter
@@ -216,113 +222,92 @@ class Huginn_recon:
         c.drawString(50, y, "HUGINN_RECON Report")
         y -= 40
 
-        for idx, result in enumerate(results, start=1):
-            if y < 100:
-                c.showPage()
-                c.setFont("Helvetica", 12)
-                y = height - 50
-
+        for category, urls in categorized_results.items():
+            if len(urls) == 0:
+                continue  # Skip categories with zero URLs
             c.setFont("Helvetica-Bold", 14)
-            c.drawString(50, y, f"Result {idx}:")
+            c.drawString(50, y, f"{category}: {len(urls)} URLs")
             y -= 20
+
             c.setFont("Helvetica", 12)
-            c.drawString(70, y, f"Website Title: {self.clean_text(result.get('title', 'N/A'))}")
-            y -= 20
-            c.drawString(70, y, f"Description: {self.clean_text(result.get('description', 'N/A'))}")
-            y -= 20
-            c.drawString(70, y, f"URL: {result.get('url', 'N/A')}")
-            y -= 20
-            if result.get("summary"):
-                wrapped_summary = textwrap.wrap(result["summary"], width=80)
-                c.drawString(70, y, "Summary:")
+            for url in urls:
+                if y < 50:
+                    c.showPage()
+                    c.setFont("Helvetica", 12)
+                    y = height - 50
+                c.drawString(70, y, f"- {url}")
                 y -= 20
-                for line in wrapped_summary:
-                    c.drawString(90, y, line)
-                    y -= 20
-            if result.get("keywords"):
-                c.drawString(70, y, f"Keywords: {', '.join(self.clean_text(word) for word in result['keywords'])}")
-                y -= 20
-            if result.get("matched_links"):
-                c.drawString(70, y, f"Links Matching Keywords:")
-                y -= 20
-                for link in result["matched_links"]:
-                    if y < 100:
-                        c.showPage()
-                        y = height - 50
-                    c.drawString(90, y, f"- {link}")
-                    y -= 20
+            y -= 20
+
+        # Add the graph to the report
+        if graph_path and os.path.exists(graph_path):
+            c.drawImage(graph_path, 50, y - 300, width=500, height=300)
+            y -= 320
 
         c.save()
         print(f"{Colors.GREEN}PDF report saved as {pdf_path}{Colors.END}")
 
-    def extract_keywords(self, text, keywords):
-        """Extract specified keywords from the page content."""
-        found_keywords = [kw for kw in keywords if kw.lower() in text.lower()]
-        return found_keywords
+    def categorize_results(self, url, text, categories):
+        """Categorize scraped content into predefined categories."""
+        for category, keywords in categories.items():
+            if any(keyword.lower() in text.lower() for keyword in keywords):
+                if category not in self.categorized_results:
+                    self.categorized_results[category] = []
+                self.categorized_results[category].append(url)
+                print(f"{Colors.CYAN}Categorized under: {category}{Colors.END}")
 
-    def extract_links(self, soup, keyword_list):
-        """Extract all links and filter by specified keywords."""
-        all_links = [a['href'] for a in soup.find_all('a', href=True)]
-        matched_links = [link for link in all_links if any(kw.lower() in link.lower() for kw in keyword_list)] if keyword_list else []
-        return all_links, matched_links
+    def generate_graph(self, categorized_results, graph_path="category_graph.png"):
+        """Generate a graph from the categorized results."""
+        categories = list(categorized_results.keys())
+        counts = [len(urls) for urls in categorized_results.values()]
+        plt.figure(figsize=(10, 6))
+        plt.bar(categories, counts, color="skyblue")
+        plt.xlabel("Categories")
+        plt.ylabel("Number of URLs")
+        plt.title("Categorized Results")
+        plt.savefig(graph_path)
+        plt.close()
+        print(f"{Colors.GREEN}Graph saved as {graph_path}{Colors.END}")
+        return graph_path
 
-    def crawl(self, query, number, use_proxy=False, scrape_sites=False, keywords=None):
+    def scrape_site(self, url, headers, proxy_config, categories):
+        """Scrape content from a website."""
+        try:
+            print(f"{Colors.BLUE}Scraping site: {url}{Colors.END}")
+            response = requests.get(url, headers=headers, proxies=proxy_config, timeout=30)
+            if response.status_code == 200:
+                text = self.clean_text(response.text)
+                self.categorize_results(url, text, categories)
+                print(f"{Colors.GREEN}Successfully scraped site: {url}{Colors.END}")
+            else:
+                print(f"{Colors.YELLOW}Failed with status code: {response.status_code}{Colors.END}")
+        except Exception as e:
+            print(f"{Colors.RED}Error scraping {url}: {e}{Colors.END}")
+
+    def crawl(self, query, number, use_proxy=False, scrape_sites=False):
         """Perform the main crawling and scraping logic."""
         headers = {'User-Agent': random.choice(Headers.user_agents)}
         proxy_config = {'http': 'socks5h://localhost:9050', 'https': 'socks5h://localhost:9050'} if use_proxy else {}
 
-        results = []
-
         try:
             print(f"{Colors.CYAN}Fetching results...{Colors.END}")
-            page = requests.get(Configuration.__huginn_recon_api__ + query, headers=headers)
-            soup = BeautifulSoup(page.content, 'html.parser')
+            response = requests.get(Configuration.__huginn_recon_api__ + query, headers=headers)
+            soup = BeautifulSoup(response.content, 'html.parser')
             result_items = soup.find_all('li', class_='result')[:number]
 
-            for idx, item in enumerate(result_items, start=1):
+            categories = Configuration.load_config()
+            for item in result_items:
                 url = item.find('cite').text.strip()
                 if not url.startswith("http"):
                     url = f"http://{url}"
-                title = item.find('a').text if item.find('a') else "No title available"
-                description = item.find('p').text if item.find('p') else "No description available"
-
-                result_data = {
-                    "title": title,
-                    "description": description,
-                    "url": url,
-                    "summary": "",
-                    "keywords": [],
-                    "matched_links": [],
-                }
-
                 if scrape_sites:
-                    try:
-                        print(f"{Colors.BLUE}Scraping site: {url}{Colors.END}")
-                        site_response = requests.get(url, headers=headers, proxies=proxy_config, timeout=30)
+                    self.scrape_site(url, headers, proxy_config, categories)
 
-                        if site_response.status_code == 200:
-                            site_soup = BeautifulSoup(site_response.content, 'html.parser')
-                            text = site_soup.get_text()
-                            result_data["summary"] = self.summarize_text(text)
-                            result_data["keywords"] = self.extract_keywords(text, keywords)
-                            _, result_data["matched_links"] = self.extract_links(site_soup, keywords)
-                            print(f"{Colors.GREEN}Successfully scraped site: {url}{Colors.END}")
-                        else:
-                            print(f"{Colors.YELLOW}Failed with status code: {site_response.status_code}{Colors.END}")
-                    except Exception as e:
-                        print(f"{Colors.RED}Failed to scrape site {url}: {e}{Colors.END}")
-
-                results.append(result_data)
-                print(f"{Colors.GREEN}Result {idx}:{Colors.END}")
-                print(f"{Colors.BLUE}Title:{Colors.END} {title}")
-                print(f"{Colors.BLUE}Description:{Colors.END} {description}")
-                print(f"{Colors.BLUE}URL:{Colors.END} {url}")
-
-            self.generate_pdf_report(results)
+            graph_path = self.generate_graph(self.categorized_results)
+            self.generate_pdf_report(self.categorized_results, graph_path)
 
         except Exception as e:
             print(f"{Colors.RED}Error: {e}{Colors.END}")
-
 
 def huginn_recon_main():
     print_banner()
@@ -331,13 +316,9 @@ def huginn_recon_main():
     parser.add_argument("-n", "--number", type=int, default=10, help="Number of results to fetch")
     parser.add_argument("-p", "--proxy", action="store_true", help="Use Tor proxy")
     parser.add_argument("-s", "--scrape", action="store_true", help="Scrape additional content")
-    parser.add_argument("-k", "--keywords", type=str, help="Keywords to match links (comma-separated)")
 
     args = parser.parse_args()
-    keywords = [kw.strip() for kw in args.keywords.split(",")] if args.keywords else []
-
-    Huginn_recon().crawl(args.query, args.number, use_proxy=args.proxy, scrape_sites=args.scrape, keywords=keywords)
-
+    Huginn_recon().crawl(args.query, args.number, use_proxy=args.proxy, scrape_sites=args.scrape)
 
 if __name__ == "__main__":
     huginn_recon_main()
