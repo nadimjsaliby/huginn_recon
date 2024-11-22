@@ -1,7 +1,22 @@
 {
-    "Malware Services": ["malware", "ransomware", "exploit", "rat"],
-    "Illegal Drugs": ["drugs", "cocaine", "marijuana", "meth"],
-    "Financial Fraud": ["fraud", "carding", "counterfeit"],
-    "Trafficking": ["child", "woman", "sex"],
-    "Identity": ["fake passport", "fake identity"]
+    "Malware Services": [
+        "malware", "ransomware", "exploit", "zero-day", "keylogger",
+        "trojan", "spyware", "adware", "rootkit", "ddos", "botnet", "payload"
+    ],
+    "Illegal Drugs": [
+        "drugs", "cocaine", "heroin", "marijuana", "meth", "fentanyl",
+        "lsd", "ecstasy", "ketamine", "opioids", "psychedelics", "crack"
+    ],
+    "Financial Fraud": [
+        "fraud", "carding", "counterfeit", "credit card", "bank logs",
+        "fake checks", "ssn", "account takeover", "wire transfer", "atm skimmer"
+    ],
+    "Trafficking": [
+        "trafficking", "child", "woman", "sex trafficking", "forced labor",
+        "organ trafficking", "exploitation", "victims", "smuggling", "prostitution"
+    ],
+    "Identity": [
+        "fake passport", "fake identity", "driver's license", "ssn generator",
+        "forged documents", "identity theft", "visa", "green card", "fake id"
+    ]
 }
