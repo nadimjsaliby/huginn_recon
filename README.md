@@ -103,9 +103,9 @@ python3 huginn_recon.py -q <query> -n <number_of_results> -p -s
 - `-s` or `--scrape`: Scrape additional site content.
 
 ### Example:
-Search for the term "malware" and categorize results based on the keywords "crypto" and "bug":
+Search for the term "malware" and categorize results:
 ```bash
-python3 hi.py -q "malware" -n 10 -p -s -k "crypto,bug"
+python3 hi.py -q "malware" -n 10 -p -s 
 ```
 
 ---
