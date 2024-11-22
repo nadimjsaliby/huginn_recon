@@ -1,0 +1,7 @@
+{
+    "Malware Services": ["malware", "ransomware", "exploit", "rat"],
+    "Illegal Drugs": ["drugs", "cocaine", "marijuana", "meth"],
+    "Financial Fraud": ["fraud", "carding", "counterfeit"],
+    "Trafficking": ["child", "woman", "sex"],
+    "Identity": ["fake passport", "fake identity"]
+}
