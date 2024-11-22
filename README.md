@@ -1,127 +1,142 @@
 
-# HUGINN_RECON: Dark Web Scraping Tool
+# Huginn Recon
 
-## Introduction
-
-HUGINN_RECON is a Python-based tool for searching, scraping, and summarizing data from the dark web using the Ahmia search engine. It generates detailed PDF reports, showcasing website metadata, summaries, matching keywords, and relevant links.
-
----
+Huginn Recon is a dark web scraping tool that categorizes websites based on pre-defined categories. The tool generates a report in PDF format along with a graphical representation of categorized results.
 
 ## Features
-
-- **Dark Web Search**: Query the Ahmia search engine for relevant results.
-- **Onion Scraping**: Scrape content from `.onion` websites.
-- **Content Summarization**: Summarize website content with configurable sentence limits.
-- **Keyword Matching**: Highlight and list links containing user-specified keywords.
-- **PDF Report Generation**: Generate professional PDF reports with all scraped data.
-- **Proxy Support**: Route traffic through Tor using SOCKS5 proxy.
-- **Customizable User-Agent**: Randomized user agents for improved stealth.
+- Scrape dark web sites via Ahmia search engine.
+- Categorize scraped results into configurable categories.
+- Generate a PDF report with categorized URLs and a graph.
+- Supports Tor proxy for anonymous scraping.
 
 ---
 
-## Prerequisites
+## Installation
 
-- Python 3.7 or later.
-- Tor must be installed and running.
-- Install the required Python libraries:
+### 1. Clone the repository:
+```bash
+git clone [<repository_url>](https://github.com/nadimjsaliby/huginn_recon.git)
+cd huginn_recon
+```
 
+### 2. Install dependencies:
+Make sure Python 3.9 or later is installed. Install the required Python libraries using `requirements.txt`:
 ```bash
 pip install -r requirements.txt
 ```
 
-**`requirements.txt`**:
-```plaintext
-beautifulsoup4
-nltk
-pyfiglet
-requests
-reportlab
+### 3. Set up Tor
+
+#### Configure Tor to work with the tool:
+- **Create a hashed password for the Tor control port**:
+  ```bash
+  tor --hash-password P@ssw0rd
+  ```
+  Replace `Cypherw0lf9.1` with your desired password. Copy the output hash and replace it in the `HashedControlPassword` field in `/etc/tor/torrc`.
+
+- **Edit the Tor configuration file (`/etc/tor/torrc`) to include the following lines**:
+```
+DNSPort 5353
+AutomapHostsOnResolve 1
+ControlPort 9051
+CookieAuthentication 1
+HashedControlPassword 16:ABCD1234EF567890FEDCBA9876543210FEDCBA1234567890ABCDEF1234567890
+Log debug file /var/log/tor/debug.log
+Log notice file /var/log/tor/notices.log
 ```
 
----
 
-## Setting Up Tor
+- **Restart Tor** to apply the changes:
+  ```bash
+  sudo systemctl restart tor
+  ```
 
-1. **Install Tor**:
-   - **Debian/Ubuntu**:
-     ```bash
-     sudo apt update
-     sudo apt install tor
-     ```
-   - **Red Hat/CentOS**:
-     ```bash
-     sudo dnf install tor
-     ```
-   - **macOS (with Homebrew)**:
-     ```bash
-     brew install tor
-     ```
+- **Verify Tor is working**:
+  Use Telnet to authenticate with the ControlPort using your password:
+  ```bash
+  telnet 127.0.0.1 9051
+  Trying 127.0.0.1...
+  Connected to 127.0.0.1.
+  Escape character is '^]'.
 
-2. **Start Tor Service**:
-   ```bash
-   sudo systemctl start tor
-   sudo systemctl enable tor
-   ```
+  authenticate "P@ssw0rd"
+  250 OK
 
-3. **Verify Tor is Running**:
-   Ensure Tor is listening on port `9050`:
-   ```bash
-   netstat -tuln | grep 9050
-   ```
+  resolve 3g2upl4pq6kufc4m.onion
+  250 OK
 
-4. **Configure Tor (Optional)**:
-   To enable control over Tor, edit `/etc/tor/torrc`:
-   ```bash
-   sudo nano /etc/tor/torrc
-   ```
-   Uncomment and set the following:
-   ```plaintext
-   ControlPort 9051
-   CookieAuthentication 1
-   ```
+  quit
+  250 closing connection
+  ```
 
-   Restart Tor after making changes:
-   ```bash
-   sudo systemctl restart tor
-   ```
+#### Configure Torsocks:
+Edit the Torsocks configuration file (`/etc/tor/torsocks.conf`) as follows:
+```
+TorAddress 127.0.0.1
+TorPort 9050
+OnionAddrRange 127.42.42.0/24
+AllowOutboundLocalhost 2
+EnableIPv6 1
+```
+
+### 4. Verify Tor connectivity:
+Run the following command to test connectivity:
+```bash
+curl --proxy socks5h://127.0.0.1:9050 http://check.torproject.org
+```
+
+You should see a message indicating you are using the Tor network.
 
 ---
 
 ## Usage
 
-Run the script using the following command structure:
-
+### Command-line options:
 ```bash
-python3 huginn_recon.py -q QUERY -n NUMBER -p -s -k KEYWORDS
+python3 huginn_recon.py -q <query> -n <number_of_results> -p -s
 ```
 
-### Arguments:
-- `-q`, `--query`: The search query for Ahmia (required).
-- `-n`, `--number`: Number of results to fetch (default: 10).
-- `-p`, `--proxy`: Enable Tor proxy for anonymous scraping.
-- `-s`, `--scrape`: Enable scraping of `.onion` sites for content and links.
-- `-k`, `--keywords`: Comma-separated keywords to match in the site content and links.
+#### Parameters:
+- `-q` or `--query`: The search query string.
+- `-n` or `--number`: Number of results to scrape (default: 10).
+- `-p` or `--proxy`: Enable Tor proxy for anonymous scraping.
+- `-s` or `--scrape`: Scrape additional site content.
 
 ### Example:
+Search for the term "malware" and categorize results based on the keywords "crypto" and "bug":
 ```bash
-python3 huginn_recon.py -q "malware" -n 5 -p -s -k "bitcoin, hacking"
+python3 hi.py -q "malware" -n 10 -p -s -k "crypto,bug"
 ```
 
 ---
 
-## Outputs
+## Configuration
 
-1. **Console Logs**:
-   - Real-time progress updates.
-   - Fetched results, scraped data, and identified matches.
+The categorization is defined in `config.json`. Update the file with your desired categories and associated keywords.
 
-2. **PDF Report**:
-   - Contains the title, description, URL, summarized content, keywords, and links matching the specified keywords.
-   - Saved as `report.pdf` in the current working directory.
+### Example `config.json`:
+```json
+{
+  "Malware Services": ["malware", "ransomware", "exploit", "rat"],
+  "Illegal Drugs": ["drugs", "cocaine", "marijuana", "meth"],
+  "Financial Fraud": ["fraud", "carding", "counterfeit"],
+  "Trafficking": ["child", "woman", "sex"],
+  "Identity": ["fake passport", "fake identity"]
+}
+```
+
+---
+
+## Output
+
+- **PDF Report**: A PDF report named `report.pdf` is generated in the current directory. It includes categorized results and their URLs.
+- **Graph**: A graphical representation of categorized results is saved as `category_graph.png`.
 
 ---
 
 ## Notes
 
-- Ensure Tor is running and listening on `localhost:9050` before running the tool.
-- Use responsibly for ethical purposes only.
+- Ensure Tor is installed and running before using the tool.
+- Update `config.json` to match your categorization needs.
+
+---
