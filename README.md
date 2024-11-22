@@ -32,7 +32,7 @@ pip install -r requirements.txt
   ```bash
   tor --hash-password P@ssw0rd
   ```
-  Replace `Cypherw0lf9.1` with your desired password. Copy the output hash and replace it in the `HashedControlPassword` field in `/etc/tor/torrc`.
+  Replace `P@ssw0rd` with your desired password. Copy the output hash and replace it in the `HashedControlPassword` field in `/etc/tor/torrc`.
 
 - **Edit the Tor configuration file (`/etc/tor/torrc`) to include the following lines**:
 ```
