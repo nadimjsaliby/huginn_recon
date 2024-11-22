@@ -15,7 +15,7 @@ Huginn Recon is a dark web scraping tool that categorizes websites based on pre-
 
 ### 1. Clone the repository:
 ```bash
-git clone [<repository_url>](https://github.com/nadimjsaliby/huginn_recon.git)
+git clone https://github.com/nadimjsaliby/huginn_recon.git
 cd huginn_recon
 ```
 
