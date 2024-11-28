@@ -13,7 +13,10 @@ from reportlab.pdfgen import canvas
 import pyfiglet
 from nltk.tokenize import sent_tokenize
 import textwrap
+import sqlite3
+from datetime import datetime
 
+# Print Banner
 def print_banner():
     banner = pyfiglet.figlet_format("HUGINN_RECON", font="starwars", width=150)
     print(f"\033[31m{banner}\033[0m")
@@ -186,7 +189,7 @@ class Headers:
         'Mozilla/5.0 (X11; Linux i686) AppleWebKit/535.21 (KHTML, like Gecko) Chrome/19.0.1041.0 Safari/535.21',
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.19 (KHTML, like Gecko) Ubuntu/11.10 Chromium/18.0.1025.142 Chrome/18.0.1025.142 Safari/535.19',
         'Mozilla/5.0 (Windows NT 5.1; U; de; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6 Opera 11.00'
-    ]
+        ]
 
 class Configuration:
     __huginn_recon_api__ = "https://ahmia.fi/search/?q="
@@ -196,23 +199,56 @@ class Configuration:
         with open(file_path, "r") as file:
             return json.load(file)
 
+# SQLite Database Manager
+class DatabaseManager:
+    def __init__(self, db_path="huginn_recon.db"):
+        self.conn = sqlite3.connect(db_path)
+        self.cursor = self.conn.cursor()
+        self.initialize_db()
+
+    def initialize_db(self):
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ScrapedData (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT UNIQUE,
+                category TEXT,
+                scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        self.conn.commit()
+
+    def save_data(self, url, category):
+        try:
+            self.cursor.execute("""
+                INSERT OR IGNORE INTO ScrapedData (url, category)
+                VALUES (?, ?)
+            """, (url, category))
+            self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"{Colors.RED}Error saving to database: {e}{Colors.END}")
+
+    def fetch_all_data(self):
+        self.cursor.execute("SELECT * FROM ScrapedData")
+        return self.cursor.fetchall()
+
+    def close(self):
+        self.conn.close()
+
 class Huginn_recon:
     def __init__(self):
         self.categorized_results = {}
+        self.db_manager = DatabaseManager()
 
     def clean_text(self, text):
-        """Clean text by removing non-printable characters and extra spaces."""
         text = re.sub(r'[^\x00-\x7F]+', '', text)
         text = re.sub(r'[\r\n\t]+', ' ', text)
         return text.strip()
 
     def summarize_text(self, text, max_sentences=3):
-        """Summarize text by extracting key sentences."""
         sentences = sent_tokenize(text)
         return ' '.join(sentences[:max_sentences])
 
     def generate_pdf_report(self, categorized_results, graph_path, filename="report.pdf"):
-        """Generate a PDF report from the categorized results."""
         pdf_path = os.path.join(os.getcwd(), filename)
         c = canvas.Canvas(pdf_path, pagesize=letter)
         width, height = letter
@@ -224,7 +260,7 @@ class Huginn_recon:
 
         for category, urls in categorized_results.items():
             if len(urls) == 0:
-                continue  # Skip categories with zero URLs
+                continue
             c.setFont("Helvetica-Bold", 14)
             c.drawString(50, y, f"{category}: {len(urls)} URLs")
             y -= 20
@@ -239,7 +275,6 @@ class Huginn_recon:
                 y -= 20
             y -= 20
 
-        # Add the graph to the report
         if graph_path and os.path.exists(graph_path):
             c.drawImage(graph_path, 50, y - 300, width=500, height=300)
             y -= 320
@@ -248,16 +283,15 @@ class Huginn_recon:
         print(f"{Colors.GREEN}PDF report saved as {pdf_path}{Colors.END}")
 
     def categorize_results(self, url, text, categories):
-        """Categorize scraped content into predefined categories."""
         for category, keywords in categories.items():
             if any(keyword.lower() in text.lower() for keyword in keywords):
                 if category not in self.categorized_results:
                     self.categorized_results[category] = []
                 self.categorized_results[category].append(url)
+                self.db_manager.save_data(url, category)  # Save to database
                 print(f"{Colors.CYAN}Categorized under: {category}{Colors.END}")
 
     def generate_graph(self, categorized_results, graph_path="category_graph.png"):
-        """Generate a graph from the categorized results."""
         categories = list(categorized_results.keys())
         counts = [len(urls) for urls in categorized_results.values()]
         plt.figure(figsize=(10, 6))
@@ -271,7 +305,6 @@ class Huginn_recon:
         return graph_path
 
     def scrape_site(self, url, headers, proxy_config, categories):
-        """Scrape content from a website."""
         try:
             print(f"{Colors.BLUE}Scraping site: {url}{Colors.END}")
             response = requests.get(url, headers=headers, proxies=proxy_config, timeout=30)
@@ -285,7 +318,6 @@ class Huginn_recon:
             print(f"{Colors.RED}Error scraping {url}: {e}{Colors.END}")
 
     def crawl(self, query, number, use_proxy=False, scrape_sites=False):
-        """Perform the main crawling and scraping logic."""
         headers = {'User-Agent': random.choice(Headers.user_agents)}
         proxy_config = {'http': 'socks5h://localhost:9050', 'https': 'socks5h://localhost:9050'} if use_proxy else {}
 
@@ -308,6 +340,8 @@ class Huginn_recon:
 
         except Exception as e:
             print(f"{Colors.RED}Error: {e}{Colors.END}")
+        finally:
+            self.db_manager.close()
 
 def huginn_recon_main():
     print_banner()
